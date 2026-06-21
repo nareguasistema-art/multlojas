@@ -218,7 +218,7 @@
       <div class="field">
         <label class="lbl" for="f-slug">Endereço de acesso</label>
         <div class="url-prefix">
-          <span>app.naregua.com/?loja=</span>
+          <span id="url-prefix-label">multlojasmodelo.vercel.app/?loja=</span>
           <input id="f-slug" placeholder="barbearia-do-ze" autocomplete="off" spellcheck="false">
         </div>
         <div class="hint">Identifica a loja na URL, no banco e nos backups. Gerado do nome — você pode ajustar.</div>
@@ -294,7 +294,7 @@
 
         <div class="url-out">
           <svg class="glyph" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L12 19"/></svg>
-          <div class="u">app.naregua.com/?loja=<span class="slug" id="pv-url">barbearia-do-ze</span></div>
+          <div class="u"><span id="url-prefix-preview">multlojasmodelo.vercel.app/?loja=</span><span class="slug" id="pv-url">barbearia-do-ze</span></div>
         </div>
       </div>
 
@@ -335,6 +335,9 @@
 <script>
 /* ============ SENHA DE ACESSO (proteção simples — trocar aqui quando quiser) ============ */
 const SENHA_CONSTRUTOR = 'naregua2026';
+
+/* ============ DOMÍNIO DO APP OPERACIONAL (trocar aqui quando tiver domínio próprio) ============ */
+const DOMINIO_APP = 'multlojasmodelo.vercel.app';
 
 /* ============ FIREBASE (projeto naregua-lojas) ============ */
 const firebaseConfig = {
@@ -600,7 +603,7 @@ async function gerar(){
     $('output').classList.add('show');
     $('output').scrollIntoView({behavior:'smooth', block:'start'});
 
-    setStatus('ok', `Loja "${nome}" criada de verdade no Firebase. Acesso: app.naregua.com/?loja=${slug}`);
+    setStatus('ok', `Loja "${nome}" criada de verdade no Firebase. Acesso: ${DOMINIO_APP}/?loja=${slug}`);
 
     // adiciona à lista da sessão (substitui se mesmo slug)
     criadas = criadas.filter(c=>c.slug !== slug);
@@ -626,13 +629,15 @@ function renderCriadas(){
       <div class="ci-logo" style="background:${c.cor}">${inicial(c.nome)}</div>
       <div class="ci-body">
         <div class="ci-name">${c.nome.replace(/</g,'&lt;')}</div>
-        <div class="ci-url">app.naregua.com/?loja=${c.slug}</div>
+        <div class="ci-url">${DOMINIO_APP}/?loja=${c.slug}</div>
       </div>
       <div class="ci-live"><span class="lv"></span> no ar</div>
     </div>`).join('');
 }
 
 /* ---------- init ---------- */
+$('url-prefix-label').textContent = DOMINIO_APP + '/?loja=';
+$('url-prefix-preview').textContent = DOMINIO_APP + '/?loja=';
 renderServicos();
 updatePreview();
 </script>
