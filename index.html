@@ -141,11 +141,19 @@
     font-weight:700;font-size:13px;color:#0A0A0A;flex-shrink:0}
   .created-item .ci-body{flex:1;min-width:0}
   .created-item .ci-name{font-weight:600;font-size:14px}
-  .created-item .ci-url{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-2);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .created-item .ci-url{font-family:'DM Mono',monospace;font-size:11px;color:var(--gold);
+    text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .created-item .ci-url:hover{text-decoration:underline}
+  .created-item .ci-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+  .created-item .ci-copy{background:var(--inner);border:1px solid var(--border2);border-radius:7px;
+    color:var(--text-2);width:30px;height:30px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:.15s;flex-shrink:0}
+  .created-item .ci-copy:hover{border-color:var(--gold);color:var(--gold)}
+  .created-item .ci-copy.copied{border-color:var(--green);color:var(--green)}
   .created-item .ci-live{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
     color:var(--green);display:flex;align-items:center;gap:5px;flex-shrink:0}
   .created-item .ci-live .lv{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+  .created-empty{font-size:12.5px;color:var(--text-3);padding:14px 0}
 
   .err{border-color:#7A1A1A !important;box-shadow:0 0 0 3px rgba(239,68,68,.12) !important}
 
@@ -359,6 +367,7 @@ const $ = id => document.getElementById(id);
   function liberar(){
     document.body.classList.remove('locked');
     $('gate').remove();
+    document.dispatchEvent(new Event('construtor:liberado'));
   }
   if(sessionStorage.getItem(SESSAO_KEY) === '1'){ liberar(); return; }
   $('gate-btn').addEventListener('click', tentar);
@@ -624,15 +633,55 @@ async function gerar(){
 function renderCriadas(){
   $('created').style.display = criadas.length ? 'block' : 'none';
   $('created-count').textContent = criadas.length;
-  $('created-list').innerHTML = criadas.map(c=>`
+  if(!criadas.length){
+    $('created-list').innerHTML = '<div class="created-empty">Nenhuma loja encontrada ainda.</div>';
+    return;
+  }
+  $('created-list').innerHTML = criadas.map(c=>{
+    const url = `https://${DOMINIO_APP}/?loja=${c.slug}`;
+    return `
     <div class="created-item">
       <div class="ci-logo" style="background:${c.cor}">${inicial(c.nome)}</div>
       <div class="ci-body">
         <div class="ci-name">${c.nome.replace(/</g,'&lt;')}</div>
-        <div class="ci-url">${DOMINIO_APP}/?loja=${c.slug}</div>
+        <a class="ci-url" href="${url}" target="_blank" rel="noopener">${DOMINIO_APP}/?loja=${c.slug}</a>
       </div>
-      <div class="ci-live"><span class="lv"></span> no ar</div>
-    </div>`).join('');
+      <div class="ci-actions">
+        <button class="ci-copy" data-url="${url}" title="Copiar link" aria-label="Copiar link">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+        <div class="ci-live"><span class="lv"></span> no ar</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  $('created-list').querySelectorAll('.ci-copy').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      try{
+        await navigator.clipboard.writeText(btn.dataset.url);
+        btn.classList.add('copied');
+        setTimeout(()=>btn.classList.remove('copied'), 1500);
+      }catch(e){ console.warn('Falha ao copiar:', e); }
+    });
+  });
+}
+
+/* ---------- carrega lojas já existentes no Firebase (não só as desta sessão) ---------- */
+async function carregarLojasExistentes(){
+  try{
+    const snap = await db.collection('lojas').orderBy('criadoEm','desc').get();
+    const doFirebase = snap.docs.map(d=>{
+      const v = d.data();
+      return { nome: v.nome || d.id, slug: v.slug || d.id, cor: v.corPrincipal || '#C9A84C' };
+    });
+    // mescla com o que já está em memória desta sessão, sem duplicar
+    doFirebase.forEach(loja=>{
+      if(!criadas.some(c=>c.slug === loja.slug)) criadas.push(loja);
+    });
+    renderCriadas();
+  }catch(e){
+    console.warn('Não consegui carregar lojas existentes:', e);
+  }
 }
 
 /* ---------- init ---------- */
@@ -640,6 +689,10 @@ $('url-prefix-label').textContent = DOMINIO_APP + '/?loja=';
 $('url-prefix-preview').textContent = DOMINIO_APP + '/?loja=';
 renderServicos();
 updatePreview();
+document.addEventListener('construtor:liberado', carregarLojasExistentes);
+// se o gate já tinha sido liberado nesta aba (sessionStorage), o evento não dispara de novo —
+// então também tentamos carregar direto, caso a tela já esteja destravada.
+if(!document.body.classList.contains('locked')) carregarLojasExistentes();
 </script>
 </body>
 </html>
