@@ -3,9 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Construtor de Sistemas — Simulador</title>
+<title>Construtor de Sistemas — Na Régua</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --bg:#0A0A0A; --card:#141414; --inner:#0F0F0F; --border:#252525; --border2:#2E2E2E;
@@ -146,18 +149,60 @@
 
   .err{border-color:#7A1A1A !important;box-shadow:0 0 0 3px rgba(239,68,68,.12) !important}
 
+  /* ---- gate de senha ---- */
+  #gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    padding:24px;z-index:999}
+  #gate .gate-card{width:100%;max-width:340px;background:var(--card);border:1px solid var(--border);
+    border-radius:14px;padding:28px 26px;text-align:center}
+  #gate .gate-icon{width:44px;height:44px;border-radius:50%;background:rgba(201,168,76,.1);
+    display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:var(--gold)}
+  #gate h2{font-size:17px;font-weight:700;margin-bottom:6px}
+  #gate p{font-size:12.5px;color:var(--text-2);margin-bottom:18px}
+  #gate input{text-align:center;letter-spacing:.04em}
+  #gate .gate-btn{margin-top:12px;width:100%;background:var(--gold);color:#0A0A0A;border:none;border-radius:9px;
+    padding:11px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer}
+  #gate .gate-err{font-size:12px;color:#EF4444;margin-top:10px;display:none}
+  body.locked{overflow:hidden}
+  body.locked .wrap{filter:blur(6px);pointer-events:none;user-select:none}
+
+  /* ---- status real (grava no firebase) ---- */
+  .status-banner{display:flex;gap:9px;align-items:flex-start;border-radius:10px;padding:11px 13px;
+    font-size:12.5px;margin-bottom:16px}
+  .status-banner.ok{background:var(--green-bg);border:1px solid #1d6b3a;color:#86efac}
+  .status-banner.bad{background:#2E0B0B;border:1px solid #7A1A1A;color:#FCA5A5}
+  .status-banner.busy{background:rgba(201,168,76,.08);border:1px solid var(--gold-m);color:var(--gold-l)}
+  .btn-gen[disabled]{opacity:.55;cursor:not-allowed}
+  .btn-gen .spin{display:inline-block;width:13px;height:13px;border-radius:50%;
+    border:2px solid rgba(10,10,10,.3);border-top-color:#0A0A0A;animation:spin .7s linear infinite;
+    vertical-align:-2px;margin-right:7px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
   @media (prefers-reduced-motion: reduce){ *{animation:none !important;transition:none !important} }
 </style>
 </head>
-<body>
+<body class="locked">
+
+<div id="gate">
+  <div class="gate-card">
+    <div class="gate-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <h2>Acesso restrito</h2>
+    <p>Esta área cria lojas de verdade no banco de dados. Digite a senha pra continuar.</p>
+    <input class="inp" id="gate-pass" type="password" placeholder="Senha" autocomplete="off">
+    <button class="gate-btn" id="gate-btn">Entrar</button>
+    <div class="gate-err" id="gate-err">Senha incorreta. Tente de novo.</div>
+  </div>
+</div>
+
 <div class="wrap">
   <header>
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
       <div class="eyebrow"><span class="dot"></span> Na Régua · Construtor</div>
-      <span class="badge-sim">Simulação</span>
+      <span class="badge-sim" style="border-color:#1d6b3a;color:#86efac">● Ao vivo</span>
     </div>
     <h1>Criar um <em>sistema novo</em> para um cliente</h1>
-    <p>Preencha os dados da loja e veja, em tempo real, o sistema que nasce: a identidade, o endereço de acesso e exatamente o que o construtor gravaria no Firebase.</p>
+    <p>Preencha os dados da loja. Ao gerar, o sistema cria de verdade o login do dono e grava a loja no Firebase — pronta pra usar no endereço gerado abaixo.</p>
   </header>
 
   <div class="grid">
@@ -225,6 +270,7 @@
         </div>
       </div>
 
+      <div class="status-banner busy" id="status-banner" style="display:none"></div>
       <button class="btn-gen" id="btn-gen">Gerar sistema</button>
     </div>
 
@@ -257,7 +303,7 @@
         <div class="card-title" style="margin:22px 0 14px"><span class="n">→</span> O que será criado</div>
         <div class="out-note">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-          <span>Isto é uma <strong>simulação</strong>. O construtor de verdade grava estes documentos no seu Firebase e cria o login do dono pela API — sem deslogar você.</span>
+          <span>Estes documentos <strong>já foram gravados de verdade</strong> no Firebase e o login do dono já existe. A loja está pronta pra usar.</span>
         </div>
 
         <div class="codeblock">
@@ -287,6 +333,46 @@
 </div>
 
 <script>
+/* ============ SENHA DE ACESSO (proteção simples — trocar aqui quando quiser) ============ */
+const SENHA_CONSTRUTOR = 'naregua2026';
+
+/* ============ FIREBASE (projeto naregua-lojas) ============ */
+const firebaseConfig = {
+  apiKey:"AIzaSyBounnQvZf5h7rQ7-t2RzZvTziQNpq6nCA",
+  authDomain:"naregua-lojas.firebaseapp.com",
+  projectId:"naregua-lojas",
+  storageBucket:"naregua-lojas.firebasestorage.app",
+  messagingSenderId:"1002682531913",
+  appId:"1:1002682531913:web:b638a2cafc167225c8bf98"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const $ = id => document.getElementById(id);
+
+/* ---------- gate de senha ---------- */
+(function(){
+  const SESSAO_KEY = 'naregua_construtor_ok';
+  function liberar(){
+    document.body.classList.remove('locked');
+    $('gate').remove();
+  }
+  if(sessionStorage.getItem(SESSAO_KEY) === '1'){ liberar(); return; }
+  $('gate-btn').addEventListener('click', tentar);
+  $('gate-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') tentar(); });
+  function tentar(){
+    const v = $('gate-pass').value;
+    if(v === SENHA_CONSTRUTOR){
+      sessionStorage.setItem(SESSAO_KEY, '1');
+      liberar();
+    } else {
+      $('gate-err').style.display = 'block';
+      $('gate-pass').classList.add('err');
+      $('gate-pass').focus();
+    }
+  }
+})();
+
 /* ---------- estado ---------- */
 let servicos = [
   {nome:'Corte', preco:40},
@@ -296,8 +382,6 @@ let servicos = [
 ];
 let slugManual = false;
 let criadas = [];
-
-const $ = id => document.getElementById(id);
 
 /* ---------- helpers ---------- */
 function slugify(s){
@@ -377,10 +461,24 @@ $('f-cor').addEventListener('input', updatePreview);
 
 function clearErr(el){ el.classList.remove('err'); }
 
-/* ---------- gerar ---------- */
+/* ---------- gerar (grava de verdade no Firebase) ---------- */
 $('btn-gen').addEventListener('click', gerar);
 
-function gerar(){
+function setStatus(tipo, msg){
+  const b = $('status-banner');
+  if(!msg){ b.style.display='none'; return; }
+  b.className = 'status-banner ' + tipo;
+  b.style.display = 'flex';
+  b.textContent = msg;
+}
+
+function setBusy(busy){
+  const btn = $('btn-gen');
+  btn.disabled = busy;
+  btn.innerHTML = busy ? '<span class="spin"></span>Criando loja…' : 'Gerar sistema';
+}
+
+async function gerar(){
   const nome  = $('f-nome').value.trim();
   const slug  = $('f-slug').value.trim();
   const email = $('f-email').value.trim();
@@ -397,81 +495,127 @@ function gerar(){
   if(!slug) fail($('f-slug'));
   if(!email || !/.+@.+\..+/.test(email)) fail($('f-email'));
   if(senha.length < 6) fail($('f-senha'));
-  if(!ok){ $('f-nome').focus(); return; }
+  if(!ok){ $('f-nome').focus(); setStatus('bad','Confira os campos destacados em vermelho.'); return; }
 
-  const servLimpos = servicos
-    .filter(s=>s.nome.trim())
-    .map(s=>({nome:s.nome.trim(), preco:Number(s.preco)||0, duracao:30}));
+  setBusy(true);
+  setStatus('busy', 'Verificando se essa loja já existe…');
 
-  const agora = new Date().toISOString();
+  try{
+    // 1) slug já em uso?
+    const lojaRef = db.collection('lojas').doc(slug);
+    const lojaSnap = await lojaRef.get();
+    if(lojaSnap.exists){
+      setStatus('bad', `Já existe uma loja com o endereço "${slug}". Escolha outro.`);
+      $('f-slug').classList.add('err');
+      setBusy(false);
+      return;
+    }
 
-  const docLoja = {
-    nome, slug, segmento: seg, corPrincipal: cor,
-    donoEmail: email, criadoEm: agora, ativo: true
-  };
+    const servLimpos = servicos
+      .filter(s=>s.nome.trim())
+      .map(s=>({nome:s.nome.trim(), preco:Number(s.preco)||0, duracao:30}));
+    const agora = new Date().toISOString();
 
-  const docConfig = {
-    barbearia: { nome, endereco: '' },
-    corPrincipal: cor,
-    barbeiros: [],
-    servicos: servLimpos,
-    taxaDebito: deb,
-    taxaCredito: cred,
-    metaMensal: 0,
-    comissoes: {},
-    confirmacao: `Olá {nome}! ✅ Seu horário na ${nome} está confirmado para {data} às {hora} ({servico}).`,
-    lembretes: [
-      { id:'l1', horasAntes:24, ativo:true,
-        template:`Olá {nome}! 🗓️ Lembrando do seu horário amanhã às {hora} para {servico} na ${nome}.` }
-    ]
-  };
+    const docLoja = {
+      nome, slug, segmento: seg, corPrincipal: cor,
+      donoEmail: email, criadoEm: agora, ativo: true
+    };
 
-  const docUser = {
-    nome: 'Dono', email, role: 'dono', lojaId: slug, criadoEm: agora
-  };
+    const docConfig = {
+      barbearia: { nome, endereco: '' },
+      corPrincipal: cor,
+      barbeiros: [],
+      servicos: servLimpos,
+      taxaDebito: deb,
+      taxaCredito: cred,
+      metaMensal: 0,
+      comissoes: {},
+      confirmacao: `Olá {nome}! ✅ Seu horário na ${nome} está confirmado para {data} às {hora} ({servico}).`,
+      lembretes: [
+        { id:'l1', horasAntes:24, ativo:true,
+          template:`Olá {nome}! 🗓️ Lembrando do seu horário amanhã às {hora} para {servico} na ${nome}.` }
+      ]
+    };
 
-  const rules = [
-    "rules_version = '2';",
-    "service cloud.firestore {",
-    "  match /databases/{database}/documents {",
-    "",
-    "    // qual loja pertence ao usuário logado",
-    "    function loja() {",
-    "      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.lojaId;",
-    "    }",
-    "",
-    "    match /usuarios/{uid} {",
-    "      allow read:  if request.auth != null && request.auth.uid == uid;",
-    "      allow write: if false;            // criado pelo construtor (admin)",
-    "    }",
-    "",
-    "    match /lojas/{lojaId} {",
-    "      allow read:  if request.auth != null && loja() == lojaId;",
-    "      allow write: if false;            // criado pelo construtor (admin)",
-    "",
-    "      match /dados/{doc} {",
-    "        allow read, write: if request.auth != null && loja() == lojaId;",
-    "      }",
-    "    }",
-    "  }",
-    "}"
-  ].join('\n');
+    // 2) cria o login do dono num app Firebase SECUNDÁRIO,
+    //    pra não derrubar a sua sessão de admin aqui no construtor.
+    setStatus('busy', 'Criando o acesso do dono…');
+    const authApp = firebase.initializeApp(firebaseConfig, 'authApp-' + Date.now());
+    let uid;
+    try{
+      const cred2 = await authApp.auth().createUserWithEmailAndPassword(email, senha);
+      uid = cred2.user.uid;
+      await authApp.auth().signOut();
+    } finally {
+      await authApp.delete(); // descarta a instância secundária
+    }
 
-  // preenche saída (textContent = sem risco de injeção)
-  $('out-loja').textContent   = JSON.stringify(docLoja, null, 2);
-  $('out-config').textContent = JSON.stringify(docConfig, null, 2);
-  $('out-user').textContent   = JSON.stringify(docUser, null, 2);
-  $('out-rules').textContent  = rules;
-  $('p-loja').textContent     = 'lojas/' + slug;
-  $('p-dados').textContent    = 'lojas/' + slug + '/dados/config';
+    const docUser = {
+      nome: 'Dono', email, role: 'dono', lojaId: slug, criadoEm: agora
+    };
 
-  $('output').classList.add('show');
-  $('output').scrollIntoView({behavior:'smooth', block:'start'});
+    // 3) grava os documentos de verdade
+    setStatus('busy', 'Gravando a loja no banco de dados…');
+    const batch = db.batch();
+    batch.set(lojaRef, docLoja);
+    batch.set(lojaRef.collection('dados').doc('config'), docConfig);
+    batch.set(db.collection('usuarios').doc(uid), docUser);
+    await batch.commit();
 
-  // adiciona à lista da sessão (substitui se mesmo slug)
-  criadas = criadas.filter(c=>c.slug !== slug);
-  criadas.unshift({nome, slug, cor});
-  renderCriadas();
+    const rules = [
+      "rules_version = '2';",
+      "service cloud.firestore {",
+      "  match /databases/{database}/documents {",
+      "",
+      "    // qual loja pertence ao usuário logado",
+      "    function loja() {",
+      "      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.lojaId;",
+      "    }",
+      "",
+      "    match /usuarios/{uid} {",
+      "      allow read:  if request.auth != null && request.auth.uid == uid;",
+      "      allow write: if false;            // criado pelo construtor (admin)",
+      "    }",
+      "",
+      "    match /lojas/{lojaId} {",
+      "      allow read:  if request.auth != null && loja() == lojaId;",
+      "      allow write: if false;            // criado pelo construtor (admin)",
+      "",
+      "      match /dados/{doc} {",
+      "        allow read, write: if request.auth != null && loja() == lojaId;",
+      "      }",
+      "    }",
+      "  }",
+      "}"
+    ].join('\n');
+
+    // preenche saída (textContent = sem risco de injeção)
+    $('out-loja').textContent   = JSON.stringify(docLoja, null, 2);
+    $('out-config').textContent = JSON.stringify(docConfig, null, 2);
+    $('out-user').textContent   = JSON.stringify(docUser, null, 2);
+    $('out-rules').textContent  = rules;
+    $('p-loja').textContent     = 'lojas/' + slug;
+    $('p-dados').textContent    = 'lojas/' + slug + '/dados/config';
+
+    $('output').classList.add('show');
+    $('output').scrollIntoView({behavior:'smooth', block:'start'});
+
+    setStatus('ok', `Loja "${nome}" criada de verdade no Firebase. Acesso: app.naregua.com/?loja=${slug}`);
+
+    // adiciona à lista da sessão (substitui se mesmo slug)
+    criadas = criadas.filter(c=>c.slug !== slug);
+    criadas.unshift({nome, slug, cor});
+    renderCriadas();
+
+  } catch(e){
+    console.error(e);
+    let msg = 'Não consegui criar a loja. ' + (e && e.message ? e.message : '');
+    if(e && e.code === 'auth/email-already-in-use') msg = 'Esse e-mail já está cadastrado como dono em outra loja.';
+    if(e && e.code === 'auth/weak-password') msg = 'Senha fraca demais — o Firebase exige pelo menos 6 caracteres.';
+    setStatus('bad', msg);
+  } finally {
+    setBusy(false);
+  }
 }
 
 function renderCriadas(){
