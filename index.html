@@ -386,7 +386,7 @@ const $ = id => document.getElementById(id);
     try{
       await auth.signInWithEmailAndPassword(ADMIN_EMAIL, ADMIN_SENHA);
     }catch(e){
-      if(e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential'){
+      if(e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' || e.code === 'auth/invalid-login-credentials'){
         const cred = await auth.createUserWithEmailAndPassword(ADMIN_EMAIL, ADMIN_SENHA);
         await db.collection('usuarios').doc(cred.user.uid).set({
           nome: 'Admin Na Régua', email: ADMIN_EMAIL, role: 'admin', criadoEm: new Date().toISOString()
