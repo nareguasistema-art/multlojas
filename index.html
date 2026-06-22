@@ -344,6 +344,10 @@
 /* ============ SENHA DE ACESSO (proteção simples — trocar aqui quando quiser) ============ */
 const SENHA_CONSTRUTOR = 'naregua2026';
 
+/* ============ CONTA ADMIN (uso interno do construtor — não é login de loja) ============ */
+const ADMIN_EMAIL = 'nareguasistema@gmail.com';
+const ADMIN_SENHA  = 'naregua26';
+
 /* ============ DOMÍNIO DO APP OPERACIONAL (trocar aqui quando tiver domínio próprio) ============ */
 const DOMINIO_APP = 'multlojasmodelo.vercel.app';
 
@@ -358,29 +362,58 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth();
 
 const $ = id => document.getElementById(id);
 
-/* ---------- gate de senha ---------- */
+/* ---------- gate de senha + login real do admin ---------- */
 (function(){
-  const SESSAO_KEY = 'naregua_construtor_ok';
   function liberar(){
     document.body.classList.remove('locked');
     $('gate').remove();
     document.dispatchEvent(new Event('construtor:liberado'));
   }
-  if(sessionStorage.getItem(SESSAO_KEY) === '1'){ liberar(); return; }
+
+  function gateErro(msg){
+    $('gate-err').textContent = msg || 'Senha incorreta. Tente de novo.';
+    $('gate-err').style.display = 'block';
+    $('gate-pass').classList.add('err');
+    $('gate-pass').focus();
+  }
+
+  async function loginAdmin(){
+    // tenta logar; se a conta admin ainda não existir no Firebase, cria na hora
+    try{
+      await auth.signInWithEmailAndPassword(ADMIN_EMAIL, ADMIN_SENHA);
+    }catch(e){
+      if(e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential'){
+        const cred = await auth.createUserWithEmailAndPassword(ADMIN_EMAIL, ADMIN_SENHA);
+        await db.collection('usuarios').doc(cred.user.uid).set({
+          nome: 'Admin Na Régua', email: ADMIN_EMAIL, role: 'admin', criadoEm: new Date().toISOString()
+        });
+      } else {
+        throw e;
+      }
+    }
+  }
+
   $('gate-btn').addEventListener('click', tentar);
   $('gate-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') tentar(); });
-  function tentar(){
+
+  async function tentar(){
     const v = $('gate-pass').value;
-    if(v === SENHA_CONSTRUTOR){
-      sessionStorage.setItem(SESSAO_KEY, '1');
+    if(v !== SENHA_CONSTRUTOR){ gateErro(); return; }
+    $('gate-btn').disabled = true;
+    $('gate-btn').textContent = 'Entrando…';
+    try{
+      await loginAdmin();
       liberar();
-    } else {
-      $('gate-err').style.display = 'block';
-      $('gate-pass').classList.add('err');
-      $('gate-pass').focus();
+    }catch(e){
+      console.error(e);
+      gateErro('Senha certa, mas não consegui conectar ao Firebase. Tente de novo.');
+    }finally{
+      $('gate-btn').disabled = false;
+      $('gate-btn').textContent = 'Entrar';
     }
   }
 })();
@@ -579,22 +612,41 @@ async function gerar(){
       "service cloud.firestore {",
       "  match /databases/{database}/documents {",
       "",
-      "    // qual loja pertence ao usuário logado",
+      "    // é a conta admin do construtor (não é dono de loja)",
+      "    function ehAdmin() {",
+      "      return request.auth != null &&",
+      "        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.role == 'admin';",
+      "    }",
+      "",
+      "    // qual loja pertence ao usuário logado (dono/funcionário)",
       "    function loja() {",
       "      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.lojaId;",
       "    }",
       "",
+      "    // só esta conta específica pode virar admin (evita autopromoção)",
+      "    function ehContaAdminFixa() {",
+      "      return request.auth != null && request.auth.token.email == 'nareguasistema@gmail.com';",
+      "    }",
+      "",
       "    match /usuarios/{uid} {",
-      "      allow read:  if request.auth != null && request.auth.uid == uid;",
-      "      allow write: if false;            // criado pelo construtor (admin)",
+      "      allow read:  if request.auth != null && (request.auth.uid == uid || ehAdmin());",
+      "      allow create: if ehAdmin()",
+      "                    || (request.auth.uid == uid && ehContaAdminFixa()",
+      "                        && request.resource.data.role == 'admin');  // 1ª vez: o próprio admin se cadastra",
+      "      allow update, delete: if false;",
       "    }",
       "",
       "    match /lojas/{lojaId} {",
-      "      allow read:  if request.auth != null && loja() == lojaId;",
-      "      allow write: if false;            // criado pelo construtor (admin)",
+      "      // metadados da loja (nome, slug, cor) — dono vê a própria, admin vê todas",
+      "      allow read:  if request.auth != null && (loja() == lojaId || ehAdmin());",
+      "      allow create: if ehAdmin();              // só o construtor cria lojas novas",
+      "      allow update, delete: if false;",
       "",
       "      match /dados/{doc} {",
-      "        allow read, write: if request.auth != null && loja() == lojaId;",
+      "        // dados operacionais (agendamentos, financeiro) — dono da loja lê/escreve;",
+      "        // admin só cria o config inicial (construtor)",
+      "        allow read, update, delete: if request.auth != null && loja() == lojaId;",
+      "        allow create: if (request.auth != null && loja() == lojaId) || ehAdmin();",
       "      }",
       "    }",
       "  }",
