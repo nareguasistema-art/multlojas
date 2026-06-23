@@ -240,6 +240,7 @@
             <option value="Barbearia" selected>Barbearia</option>
             <option value="Salão">Salão de beleza</option>
             <option value="Estética">Estética</option>
+            <option value="Tatuagem">Tatuagem</option>
             <option value="Outro">Outro</option>
           </select>
         </div>
@@ -501,8 +502,19 @@ $('f-slug').addEventListener('input', e=>{
   e.target.value = slugify(e.target.value);
   clearErr(e.target); updatePreview();
 });
-$('f-cor').addEventListener('input', updatePreview);
+$('f-cor').addEventListener('input', ()=>{ corManual = true; updatePreview(); });
 ['f-email','f-senha'].forEach(id=> $(id).addEventListener('input', e=>clearErr(e.target)));
+
+/* cor padrão por segmento (só aplica se o admin ainda não escolheu manualmente) */
+let corManual = false;
+const COR_SEGMENTO = { 'Barbearia':'#C9A84C', 'Salão':'#C9A84C', 'Estética':'#E0729B', 'Tatuagem':'#6366F1', 'Outro':'#C9A84C' };
+$('f-seg').addEventListener('change', e=>{
+  if(!corManual){
+    const c = COR_SEGMENTO[e.target.value] || '#C9A84C';
+    $('f-cor').value = c;
+  }
+  updatePreview();
+});
 
 function clearErr(el){ el.classList.remove('err'); }
 
@@ -568,6 +580,7 @@ async function gerar(){
 
     const docConfig = {
       barbearia: { nome, endereco: '' },
+      segmento: seg,
       corPrincipal: cor,
       barbeiros: [],
       servicos: servLimpos,
