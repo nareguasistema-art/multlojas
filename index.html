@@ -381,40 +381,13 @@ const $ = id => document.getElementById(id);
     $('gate-pass').focus();
   }
 
-  async function loginAdmin(){
-    // tenta logar; se a conta admin ainda não existir no Firebase, cria na hora
-    try{
-      await auth.signInWithEmailAndPassword(ADMIN_EMAIL, ADMIN_SENHA);
-    }catch(e){
-      if(e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' || e.code === 'auth/invalid-login-credentials'){
-        const cred = await auth.createUserWithEmailAndPassword(ADMIN_EMAIL, ADMIN_SENHA);
-        await db.collection('usuarios').doc(cred.user.uid).set({
-          nome: 'Admin Na Régua', email: ADMIN_EMAIL, role: 'admin', criadoEm: new Date().toISOString()
-        });
-      } else {
-        throw e;
-      }
-    }
-  }
-
   $('gate-btn').addEventListener('click', tentar);
   $('gate-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') tentar(); });
 
-  async function tentar(){
+  function tentar(){
     const v = $('gate-pass').value;
     if(v !== SENHA_CONSTRUTOR){ gateErro(); return; }
-    $('gate-btn').disabled = true;
-    $('gate-btn').textContent = 'Entrando…';
-    try{
-      await loginAdmin();
-      liberar();
-    }catch(e){
-      console.error(e);
-      gateErro('Senha certa, mas não consegui conectar ao Firebase. Tente de novo.');
-    }finally{
-      $('gate-btn').disabled = false;
-      $('gate-btn').textContent = 'Entrar';
-    }
+    liberar();
   }
 })();
 
